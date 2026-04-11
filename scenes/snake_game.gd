@@ -38,6 +38,8 @@ var lives: int = 3
 var hit_flash: float = 0.0
 const HIT_FLASH_TIME := 0.25
 
+var party_border_phase: float = 0.0
+
 
 func _ready() -> void:
 	randomize()
@@ -130,9 +132,12 @@ func _process(delta: float) -> void:
 	move_timer += delta
 
 	if move_timer >= move_interval:
-
 		move_timer = 0.0
 		_move_snake()
+
+	# szybkie przełączanie fazy do kogutów
+	if party_mode and good_food_eaten >= 2:
+		party_border_phase += delta * 8.0
 
 
 func _handle_menu_input() -> void:
@@ -232,6 +237,7 @@ func _move_snake() -> void:
 
 			party_foods.erase(new_head)
 			score += 1
+			good_food_eaten += 1
 
 		else:
 			snake.pop_back()
@@ -281,14 +287,25 @@ func _lose_life() -> void:
 	queue_redraw()
 
 
+func _get_head_rotation() -> float:
+	match direction:
+		Direction.UP:
+			return deg_to_rad(270)
+		Direction.DOWN:
+			return deg_to_rad(90)
+		Direction.LEFT:
+			return deg_to_rad(180)
+		Direction.RIGHT:
+			return deg_to_rad(0)
+	return 0.0
+
+
 func _draw() -> void:
 
 	var font = ThemeDB.fallback_font
 	var screen_w = GRID_WIDTH * CELL_SIZE
 	var screen_h = GRID_HEIGHT * CELL_SIZE
 
-
-	# ===== MENU =====
 
 	if game_state == GameState.MENU:
 
@@ -307,15 +324,11 @@ func _draw() -> void:
 		return
 
 
-	# ===== TŁO =====
-
 	draw_rect(
 		Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)),
 		Color(0.05,0.05,0.05)
 	)
 
-
-	# ===== FOOD =====
 
 	if party_mode:
 
@@ -343,7 +356,39 @@ func _draw() -> void:
 			)
 
 
-	# ===== PARTY TEXT =====
+	for i in range(snake.size()):
+
+		var pos := snake[i] * CELL_SIZE
+
+		if i == 0:
+
+			var pos_v2 := Vector2(pos)
+
+			draw_set_transform(
+				pos_v2 + Vector2(CELL_SIZE/2, CELL_SIZE/2),
+				_get_head_rotation(),
+				Vector2.ONE
+			)
+
+			draw_texture_rect(
+				snake_head_tex,
+				Rect2(Vector2(-CELL_SIZE/2, -CELL_SIZE/2), Vector2(CELL_SIZE,CELL_SIZE)),
+				false
+			)
+
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+		else:
+
+			draw_rect(
+				Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)),
+				Color("#8DD86D")
+			)
+
+
+	draw_string(font, Vector2(10,20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+	draw_string(font, Vector2(10,40), "Lives: %d" % lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1,0.6,0.6))
+
 
 	if party_mode:
 
@@ -361,35 +406,23 @@ func _draw() -> void:
 		)
 
 
-	# ===== SNAKE =====
+	if party_mode and good_food_eaten >= 2:
 
-	for i in range(snake.size()):
+		var flash = int(party_border_phase) % 2
 
-		var pos := snake[i] * CELL_SIZE
-
-		if i == 0:
-
-			draw_texture_rect(
-				snake_head_tex,
-				Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)),
-				false
-			)
-
+		var col: Color
+		if flash == 0:
+			col = Color(1, 0, 0, 0.9)
 		else:
+			col = Color(0, 0.3, 1, 0.9)
 
-			draw_rect(
-				Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)),
-				Color("#8DD86D")
-			)
+		var thickness = 12
 
+		draw_rect(Rect2(0, 0, screen_w, thickness), col)
+		draw_rect(Rect2(0, screen_h - thickness, screen_w, thickness), col)
+		draw_rect(Rect2(0, 0, thickness, screen_h), col)
+		draw_rect(Rect2(screen_w - thickness, 0, thickness, screen_h), col)
 
-	# ===== UI =====
-
-	draw_string(font, Vector2(10,20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
-	draw_string(font, Vector2(10,40), "Lives: %d" % lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1,0.6,0.6))
-
-
-	# ===== GAME OVER =====
 
 	if game_state == GameState.GAME_OVER:
 
@@ -402,8 +435,6 @@ func _draw() -> void:
 		draw_string(font, Vector2((screen_w - s1.x)/2, screen_h/2 - 10), txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1,0.3,0.3))
 		draw_string(font, Vector2((screen_w - s2.x)/2, screen_h/2 + 25), txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 
-
-	# ===== HIT FLASH =====
 
 	if hit_flash > 0.0:
 
