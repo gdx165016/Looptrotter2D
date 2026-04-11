@@ -226,10 +226,10 @@ func _lose_life() -> void:
 
 	queue_redraw()
 
-
 func _draw() -> void:
 
 	var font = ThemeDB.fallback_font
+	var screen_w = GRID_WIDTH * CELL_SIZE
 
 	if game_state == GameState.MENU:
 
@@ -237,9 +237,14 @@ func _draw() -> void:
 		var mode_text := "MODE: " + ("NORMAL" if game_mode == GameMode.NORMAL else "HARDCORE")
 		var info := "ENTER - START | LEFT/RIGHT - MODE"
 
-		draw_string(font, Vector2(200, 150), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color.WHITE)
-		draw_string(font, Vector2(180, 200), mode_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.8, 0.8, 1))
-		draw_string(font, Vector2(100, 250), info, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.7, 0.7, 0.7))
+		var title_size = font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
+		draw_string(font, Vector2((screen_w - title_size.x) / 2, 150), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color.WHITE)
+
+		var mode_size = font.get_string_size(mode_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+		draw_string(font, Vector2((screen_w - mode_size.x) / 2, 200), mode_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.8, 0.8, 1))
+
+		var info_size = font.get_string_size(info, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
+		draw_string(font, Vector2((screen_w - info_size.x) / 2, 250), info, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.7, 0.7, 0.7))
 
 		return
 
@@ -271,10 +276,14 @@ func _draw() -> void:
 		draw_string(font, Vector2(10, 60), "PARTY MODE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 1, 0))
 
 	if game_state == GameState.GAME_OVER:
-		draw_string(font, Vector2(120, 200), "GAME OVER - ENTER", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.4, 0.4))
+		var go_text = "GAME OVER - ENTER"
+		var go_size = font.get_string_size(go_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+		draw_string(font, Vector2((screen_w - go_size.x) / 2, 200), go_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.4, 0.4))
 
 	if paused:
-		draw_string(font, Vector2(180, 180), "PAUSED", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 0.3))
+		var p_text = "PAUSED"
+		var p_size = font.get_string_size(p_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
+		draw_string(font, Vector2((screen_w - p_size.x) / 2, 180), p_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 0.3))
 
 	if hit_flash > 0.0:
 		var alpha := hit_flash / HIT_FLASH_TIME
