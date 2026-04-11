@@ -8,6 +8,12 @@ const GRID_HEIGHT: int = 24
 @onready var beer_tex: Texture2D = preload("res://art/piwo.png")
 @onready var water_tex: Texture2D = preload("res://art/woda.png")
 
+# 🎧 AUDIO
+@onready var music_normal: AudioStreamPlayer = $MusicNormal
+@onready var music_party: AudioStreamPlayer = $MusicParty
+@onready var sfx_beer: AudioStreamPlayer = $SfxBeer
+@onready var sfx_water: AudioStreamPlayer = $SfxWater
+
 enum Direction { UP, DOWN, LEFT, RIGHT }
 enum GameMode { NORMAL, HARDCORE }
 enum GameState { MENU, PLAYING, GAME_OVER }
@@ -46,9 +52,14 @@ func _ready() -> void:
 	queue_redraw()
 
 
+# ---------------- START ----------------
+
 func _start_game() -> void:
 	_reset_game()
 	game_state = GameState.PLAYING
+
+	music_party.stop()
+	music_normal.play()
 
 
 func _reset_game() -> void:
@@ -78,6 +89,25 @@ func _reset_game() -> void:
 	_spawn_foods()
 
 
+# ---------------- PARTY MODE ----------------
+
+func _start_party_mode() -> void:
+
+	party_mode = true
+	party_foods.clear()
+
+	for x in range(GRID_WIDTH):
+		for y in range(GRID_HEIGHT):
+			var pos := Vector2i(x, y)
+			if pos not in snake:
+				party_foods.append(pos)
+
+	music_normal.stop()
+	music_party.play()
+
+
+# ---------------- SPAWN ----------------
+
 func _spawn_foods() -> void:
 
 	while true:
@@ -94,19 +124,7 @@ func _spawn_foods() -> void:
 				break
 
 
-func _start_party_mode() -> void:
-
-	party_mode = true
-	party_foods.clear()
-
-	for x in range(GRID_WIDTH):
-		for y in range(GRID_HEIGHT):
-
-			var pos := Vector2i(x, y)
-
-			if pos not in snake:
-				party_foods.append(pos)
-
+# ---------------- LOOP ----------------
 
 func _process(delta: float) -> void:
 
@@ -115,9 +133,9 @@ func _process(delta: float) -> void:
 		return
 
 	if game_state == GameState.GAME_OVER:
-		if Input.is_action_just_pressed("ui_accept"):
-			game_state = GameState.MENU
 		queue_redraw()
+		if Input.is_action_just_pressed("ui_accept"):
+			_start_game()
 		return
 
 	if paused:
@@ -125,7 +143,6 @@ func _process(delta: float) -> void:
 
 	if hit_flash > 0.0:
 		hit_flash -= delta
-		queue_redraw()
 
 	_handle_input()
 
@@ -135,20 +152,16 @@ func _process(delta: float) -> void:
 		move_timer = 0.0
 		_move_snake()
 
-	# szybkie przełączanie fazy do kogutów
 	if party_mode and good_food_eaten >= 2:
 		party_border_phase += delta * 8.0
 
 
+# ---------------- INPUT ----------------
+
 func _handle_menu_input() -> void:
 
 	if Input.is_action_just_pressed("ui_left") or Input.is_action_just_pressed("ui_right"):
-
-		if game_mode == GameMode.NORMAL:
-			game_mode = GameMode.HARDCORE
-		else:
-			game_mode = GameMode.NORMAL
-
+		game_mode = GameMode.HARDCORE if game_mode == GameMode.NORMAL else GameMode.NORMAL
 		queue_redraw()
 
 	if Input.is_action_just_pressed("ui_accept"):
@@ -161,22 +174,16 @@ func _handle_input() -> void:
 
 	if Input.is_action_just_pressed("ui_up"):
 		new_dir = Direction.UP
-
 	elif Input.is_action_just_pressed("ui_down"):
 		new_dir = Direction.DOWN
-
 	elif Input.is_action_just_pressed("ui_left"):
 		new_dir = Direction.LEFT
-
 	elif Input.is_action_just_pressed("ui_right"):
 		new_dir = Direction.RIGHT
-
 	else:
 		return
 
-
 	var last_dir := direction
-
 	if direction_queue.size() > 0:
 		last_dir = direction_queue[-1]
 
@@ -188,7 +195,6 @@ func _handle_input() -> void:
 
 
 func _is_opposite(a: Direction, b: Direction) -> bool:
-
 	return (
 		(a == Direction.UP and b == Direction.DOWN) or
 		(a == Direction.DOWN and b == Direction.UP) or
@@ -196,6 +202,8 @@ func _is_opposite(a: Direction, b: Direction) -> bool:
 		(a == Direction.RIGHT and b == Direction.LEFT)
 	)
 
+
+# ---------------- MOVE ----------------
 
 func _move_snake() -> void:
 
@@ -214,78 +222,69 @@ func _move_snake() -> void:
 
 	var new_head := head + dir_vec
 
-
-	if new_head.x < 0 or new_head.x >= GRID_WIDTH \
-	or new_head.y < 0 or new_head.y >= GRID_HEIGHT:
-
+	if new_head.x < 0 or new_head.x >= GRID_WIDTH or new_head.y < 0 or new_head.y >= GRID_HEIGHT:
 		_lose_life()
 		return
-
 
 	if new_head in snake:
-
 		_lose_life()
 		return
 
-
 	snake.insert(0, new_head)
-
 
 	if party_mode:
 
 		if new_head in party_foods:
-
 			party_foods.erase(new_head)
 			score += 1
 			good_food_eaten += 1
-
 		else:
 			snake.pop_back()
-
 
 	else:
 
 		if new_head == food_pos:
 
+			sfx_beer.play()
 			score += 1
 
 			if game_mode == GameMode.HARDCORE:
-
 				good_food_eaten += 1
-
 				if good_food_eaten >= 2:
 					_start_party_mode()
 
 			move_interval = max(0.05, move_interval - 0.005)
-
 			_spawn_foods()
-
 
 		elif game_mode == GameMode.NORMAL and new_head == bad_food_pos:
 
+			sfx_water.play()
 			_lose_life()
 			snake.pop_back()
 			_spawn_foods()
 
 		else:
-
 			snake.pop_back()
-
 
 	queue_redraw()
 
+
+# ---------------- GAME OVER ----------------
 
 func _lose_life() -> void:
 
 	lives -= 1
-
 	hit_flash = HIT_FLASH_TIME
 
 	if lives <= 0:
 		game_state = GameState.GAME_OVER
+		music_normal.stop()
+		music_party.stop()
 
 	queue_redraw()
 
+
+# ---------------- FIXED ROTATION (PRZYWRÓCONE) ----------------
 
 func _get_head_rotation() -> float:
 	match direction:
@@ -300,11 +299,28 @@ func _get_head_rotation() -> float:
 	return 0.0
 
 
+# ---------------- DRAW ----------------
+
 func _draw() -> void:
 
 	var font = ThemeDB.fallback_font
 	var screen_w = GRID_WIDTH * CELL_SIZE
 	var screen_h = GRID_HEIGHT * CELL_SIZE
+
+	if game_state == GameState.GAME_OVER:
+
+		draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0,0,0))
+
+		var txt1 := "GAME OVER"
+		var txt2 := "PRESS ENTER TO RESTART"
+
+		var s1 = font.get_string_size(txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
+		var s2 = font.get_string_size(txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+
+		draw_string(font, Vector2((screen_w - s1.x)/2, screen_h/2 - 20), txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1,0.3,0.3))
+		draw_string(font, Vector2((screen_w - s2.x)/2, screen_h/2 + 20), txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+
+		return
 
 
 	if game_state == GameState.MENU:
@@ -324,36 +340,20 @@ func _draw() -> void:
 		return
 
 
-	draw_rect(
-		Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)),
-		Color(0.05,0.05,0.05)
-	)
+	draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0.05,0.05,0.05))
 
 
 	if party_mode:
 
 		for pos in party_foods:
-			draw_texture_rect(
-				beer_tex,
-				Rect2(pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)),
-				false
-			)
+			draw_texture_rect(beer_tex, Rect2(pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)), false)
 
 	else:
 
-		draw_texture_rect(
-			beer_tex,
-			Rect2(food_pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)),
-			false
-		)
+		draw_texture_rect(beer_tex, Rect2(food_pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)), false)
 
 		if game_mode == GameMode.NORMAL:
-
-			draw_texture_rect(
-				water_tex,
-				Rect2(bad_food_pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)),
-				false
-			)
+			draw_texture_rect(water_tex, Rect2(bad_food_pos * CELL_SIZE, Vector2(CELL_SIZE,CELL_SIZE)), false)
 
 
 	for i in range(snake.size()):
@@ -380,10 +380,7 @@ func _draw() -> void:
 
 		else:
 
-			draw_rect(
-				Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)),
-				Color("#8DD86D")
-			)
+			draw_rect(Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)), Color("#8DD86D"))
 
 
 	draw_string(font, Vector2(10,20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
@@ -395,52 +392,11 @@ func _draw() -> void:
 		var txt := "PARTY MODE"
 		var size = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 
-		draw_string(
-			font,
-			Vector2((screen_w - size.x)/2, 90),
-			txt,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1,
-			20,
-			Color(1,1,0)
-		)
-
-
-	if party_mode and good_food_eaten >= 2:
-
-		var flash = int(party_border_phase) % 2
-
-		var col: Color
-		if flash == 0:
-			col = Color(1, 0, 0, 0.9)
-		else:
-			col = Color(0, 0.3, 1, 0.9)
-
-		var thickness = 12
-
-		draw_rect(Rect2(0, 0, screen_w, thickness), col)
-		draw_rect(Rect2(0, screen_h - thickness, screen_w, thickness), col)
-		draw_rect(Rect2(0, 0, thickness, screen_h), col)
-		draw_rect(Rect2(screen_w - thickness, 0, thickness, screen_h), col)
-
-
-	if game_state == GameState.GAME_OVER:
-
-		var txt1 := "GAME OVER"
-		var txt2 := "PRESS ENTER TO RESTART"
-
-		var s1 = font.get_string_size(txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
-		var s2 = font.get_string_size(txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
-
-		draw_string(font, Vector2((screen_w - s1.x)/2, screen_h/2 - 10), txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1,0.3,0.3))
-		draw_string(font, Vector2((screen_w - s2.x)/2, screen_h/2 + 25), txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+		draw_string(font, Vector2((screen_w - size.x)/2, 90), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1,1,0))
 
 
 	if hit_flash > 0.0:
 
 		var alpha := hit_flash / HIT_FLASH_TIME
 
-		draw_rect(
-			Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)),
-			Color(1,0,0,0.3 * alpha)
-		)
+		draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(1,0,0,0.3 * alpha))

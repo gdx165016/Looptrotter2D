@@ -1,6 +1,25 @@
 [gd_scene format=3 uid="uid://ce2girjoirnro"]
 
 [ext_resource type="Script" uid="uid://dfchiu7jv3kuh" path="res://scenes/snake_game.gd" id="1_7ig5s"]
+[ext_resource type="AudioStream" uid="uid://dtk8hp7aurdpq" path="res://art/music.wav" id="2_4njxo"]
+[ext_resource type="AudioStream" uid="uid://dv82tpi0sftcp" path="res://art/beer.wav" id="3_ismg8"]
+[ext_resource type="AudioStream" uid="uid://cm4rh3kxlkxqe" path="res://art/water.wav" id="4_805o7"]
+[ext_resource type="AudioStream" uid="uid://bybmd5ovewdt0" path="res://art/hardmode.wav" id="5_ismg8"]
 
 [node name="SnakeGame" type="Node2D" unique_id=617699494]
 script = ExtResource("1_7ig5s")
+
+[node name="MusicNormal" type="AudioStreamPlayer" parent="." unique_id=1500152444]
+stream = ExtResource("2_4njxo")
+volume_db = -1.825
+
+[node name="SfxBeer" type="AudioStreamPlayer" parent="." unique_id=313240182]
+stream = ExtResource("3_ismg8")
+volume_db = 1.825
+
+[node name="SfxWater" type="AudioStreamPlayer" parent="." unique_id=1000788783]
+stream = ExtResource("4_805o7")
+
+[node name="MusicParty" type="AudioStreamPlayer" parent="." unique_id=733278756]
+stream = ExtResource("5_ismg8")
+volume_db = -1.825
