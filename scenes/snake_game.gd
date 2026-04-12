@@ -16,7 +16,7 @@ const GRID_HEIGHT: int = 24
 
 enum Direction { UP, DOWN, LEFT, RIGHT }
 enum GameMode { NORMAL, HARDCORE }
-enum GameState { MENU, PLAYING, GAME_OVER }
+enum GameState { MENU, INSTRUCTIONS_NORMAL, INSTRUCTIONS_HARDCORE, PLAYING, GAME_OVER }
 
 var direction_queue: Array[Direction] = []
 const MAX_QUEUE_SIZE := 3
@@ -45,6 +45,7 @@ var hit_flash: float = 0.0
 const HIT_FLASH_TIME := 0.25
 
 var party_border_phase: float = 0.0
+var hardcore_border_phase: float = 0.0   # 🚨 faza kogutów policyjnych
 
 
 func _ready() -> void:
@@ -132,10 +133,22 @@ func _process(delta: float) -> void:
 		_handle_menu_input()
 		return
 
-	if game_state == GameState.GAME_OVER:
+	if game_state == GameState.INSTRUCTIONS_NORMAL:
 		queue_redraw()
 		if Input.is_action_just_pressed("ui_accept"):
 			_start_game()
+		return
+
+	if game_state == GameState.INSTRUCTIONS_HARDCORE:
+		queue_redraw()
+		if Input.is_action_just_pressed("ui_accept"):
+			_start_game()
+		return
+
+	if game_state == GameState.GAME_OVER:
+		queue_redraw()
+		if Input.is_action_just_pressed("ui_accept"):
+			game_state = GameState.MENU
 		return
 
 	if paused:
@@ -155,6 +168,10 @@ func _process(delta: float) -> void:
 	if party_mode and good_food_eaten >= 2:
 		party_border_phase += delta * 8.0
 
+	# 🚨 HARDCORE BORDER ANIMATION — tylko w party mode
+	if game_mode == GameMode.HARDCORE and party_mode and game_state == GameState.PLAYING:
+		hardcore_border_phase += delta * 6.0
+
 
 # ---------------- INPUT ----------------
 
@@ -165,7 +182,10 @@ func _handle_menu_input() -> void:
 		queue_redraw()
 
 	if Input.is_action_just_pressed("ui_accept"):
-		_start_game()
+		if game_mode == GameMode.NORMAL:
+			game_state = GameState.INSTRUCTIONS_NORMAL
+		else:
+			game_state = GameState.INSTRUCTIONS_HARDCORE
 
 
 func _handle_input() -> void:
@@ -222,7 +242,9 @@ func _move_snake() -> void:
 
 	var new_head := head + dir_vec
 
+	# ---------------- WALL COLLISION = INSTANT DEATH ----------------
 	if new_head.x < 0 or new_head.x >= GRID_WIDTH or new_head.y < 0 or new_head.y >= GRID_HEIGHT:
+		lives = 1
 		_lose_life()
 		return
 
@@ -284,7 +306,7 @@ func _lose_life() -> void:
 	queue_redraw()
 
 
-# ---------------- FIXED ROTATION (PRZYWRÓCONE) ----------------
+# ---------------- FIXED ROTATION ----------------
 
 func _get_head_rotation() -> float:
 	match direction:
@@ -307,12 +329,13 @@ func _draw() -> void:
 	var screen_w = GRID_WIDTH * CELL_SIZE
 	var screen_h = GRID_HEIGHT * CELL_SIZE
 
+	# ---------------- GAME OVER ----------------
 	if game_state == GameState.GAME_OVER:
 
 		draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0,0,0))
 
 		var txt1 := "GAME OVER"
-		var txt2 := "PRESS ENTER TO RESTART"
+		var txt2 := "PRESS ENTER TO RETURN"
 
 		var s1 = font.get_string_size(txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
 		var s2 = font.get_string_size(txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
@@ -322,7 +345,45 @@ func _draw() -> void:
 
 		return
 
+	# ---------------- INSTRUCTIONS NORMAL ----------------
+	if game_state == GameState.INSTRUCTIONS_NORMAL:
 
+		draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0,0,0))
+
+		var txt1 := "MOCNY FULL – zbieraj, aby dostawać punkty"
+		var txt2 := "WODA – uważaj, zabiera ci ona życia!"
+		var txt3 := "ZDERZENIE ZE ŚCIANĄ – to game over"
+		var txt4 := "NACIŚNIJ ENTER, ABY ZACZĄĆ"
+
+		var s1 = font.get_string_size(txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+		var s2 = font.get_string_size(txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+		var s3 = font.get_string_size(txt3, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
+		var s4 = font.get_string_size(txt4, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+
+		draw_string(font, Vector2((screen_w - s1.x)/2, 150), txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+		draw_string(font, Vector2((screen_w - s2.x)/2, 190), txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+		draw_string(font, Vector2((screen_w - s3.x)/2, 230), txt3, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+		draw_string(font, Vector2((screen_w - s4.x)/2, 300), txt4, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.8,0.8,1))
+
+		return
+
+	# ---------------- INSTRUCTIONS HARDCORE ----------------
+	if game_state == GameState.INSTRUCTIONS_HARDCORE:
+
+		draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0,0,0))
+
+		var txt1 := "Zbieraj MOCNY FULL, kaucja sama się nie odda!"
+		var txt2 := "NACIŚNIJ ENTER, ABY ZACZĄĆ"
+
+		var s1 = font.get_string_size(txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 22)
+		var s2 = font.get_string_size(txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+
+		draw_string(font, Vector2((screen_w - s1.x)/2, 200), txt1, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+		draw_string(font, Vector2((screen_w - s2.x)/2, 260), txt2, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.8,0.8,1))
+
+		return
+
+	# ---------------- MENU ----------------
 	if game_state == GameState.MENU:
 
 		var title := "SNAKE"
@@ -340,8 +401,27 @@ func _draw() -> void:
 		return
 
 
+	# ---------------- GAMEPLAY ----------------
+
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen_w, screen_h)), Color(0.05,0.05,0.05))
 
+	# 🚨 HARDCORE BORDER EFFECT — tylko w party mode
+	if game_mode == GameMode.HARDCORE and party_mode and game_state == GameState.PLAYING:
+
+		var t = sin(hardcore_border_phase)
+
+		var col1 = Color(1, 0, 0, abs(t))     # czerwony
+		var col2 = Color(0, 0.3, 1, abs(-t)) # niebieski
+
+		var thickness = 6
+
+		draw_rect(Rect2(0, 0, screen_w, thickness), col1 if t > 0 else col2)
+		draw_rect(Rect2(0, screen_h - thickness, screen_w, thickness), col1 if t > 0 else col2)
+		draw_rect(Rect2(0, 0, thickness, screen_h), col1 if t > 0 else col2)
+		draw_rect(Rect2(screen_w - thickness, 0, thickness, screen_h), col1 if t > 0 else col2)
+
+
+	# ---------------- FOOD + SNAKE ----------------
 
 	if party_mode:
 
@@ -383,16 +463,34 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(CELL_SIZE,CELL_SIZE)), Color("#8DD86D"))
 
 
-	draw_string(font, Vector2(10,20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
-	draw_string(font, Vector2(10,40), "Lives: %d" % lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1,0.6,0.6))
-
-
+	# ---------------- PARTY MODE TEXT (na wierzchu, migający) ----------------
 	if party_mode:
 
 		var txt := "PARTY MODE"
 		var size = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 
-		draw_string(font, Vector2((screen_w - size.x)/2, 90), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1,1,0))
+		var t = sin(hardcore_border_phase)
+
+		var col1 = Color(1, 0, 0, abs(t))
+		var col2 = Color(0, 0.3, 1, abs(-t))
+
+		var final_color = col1 if t > 0 else col2
+
+		draw_string(
+			font,
+			Vector2((screen_w - size.x)/2, 90),
+			txt,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			20,
+			final_color
+		)
+
+
+	# ---------------- HUD ----------------
+
+	draw_string(font, Vector2(10,20), "Score: %d" % score, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+	draw_string(font, Vector2(10,40), "Lives: %d" % lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1,0.6,0.6))
 
 
 	if hit_flash > 0.0:
